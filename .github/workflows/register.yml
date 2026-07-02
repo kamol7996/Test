@@ -27,10 +27,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
-      - name: Install Playwright browsers
+      - name: Update system packages for Playwright
         run: |
-          playwright install chromium
-          playwright install-deps
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libx11-6 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxrender1 libasound2t64 libatk1.0-0 libatk-bridge2.0-0 libpangocairo-1.0-0 libpango-1.0-0 libgdk-pixbuf-2.0-0 libglib2.0-0 libgtk-3-0 libnspr4 libnss3 2>&1 || true
+      
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          python -m playwright install chromium
       
       - name: Clear previous logs
         run: |
