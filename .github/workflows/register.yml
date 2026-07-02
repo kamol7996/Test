@@ -53,7 +53,7 @@ jobs:
           EMAILS_DATA: ${{ secrets.EMAILS_DATA }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          RECAPTCHA_TOKEN: ${{ secrets.RECAPTCHA_TOKEN }}
+          
         run: |
           echo "====== STARTING OG REGISTRATION AUTOMATION ======"
           echo "[DEBUG] Current directory: $(pwd)"
