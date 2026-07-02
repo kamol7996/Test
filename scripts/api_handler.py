@@ -11,6 +11,7 @@ class APIHandler:
         self.session_token = None
         self.tmx_session_id = None
         self.anonymous_id = None
+        self.ac_value = None
         self.cookies = {}
     
     def initialize_session(self):
@@ -34,29 +35,66 @@ class APIHandler:
             self.cookies = self.session.cookies.get_dict()
             print(f"  Cookies received: {list(self.cookies.keys())}")
             
-            # Step 2: Response headers থেকে tokens extract করুন (যদি থাকে)
-            if 'session-token' in response.headers:
-                self.session_token = response.headers['session-token']
-                print(f"  ✓ Session Token from response: {self.session_token[:30]}...")
-            
-            if 'tmx-session-id' in response.headers:
-                self.tmx_session_id = response.headers['tmx-session-id']
-                print(f"  ✓ TMX Session ID from response: {self.tmx_session_id}")
-            
-            if 'x-anonymous-id' in response.headers:
-                self.anonymous_id = response.headers['x-anonymous-id']
-                print(f"  ✓ Anonymous ID from response: {self.anonymous_id}")
-            
-            # যদি headers থেকে না পায়, তাহলে dummy values set করুন
-            # যা প্রথম API call এ update হবে
-            if not self.session_token:
-                print(f"  ℹ️  Session token will be obtained from first API call")
+            # Response থেকে ac value খুঁজুন (যদি থাকে)
+            # সাধারণত এটা page source এ থাকে
+            if 'uc_flow' in response.text:
+                print(f"  ✓ UC flow found in response")
             
             print(f"  ✓ Session initialized successfully")
             return True
         
         except Exception as e:
             print(f"✗ Session initialization failed: {e}")
+            return False
+    
+    def get_session_token(self, ac_value):
+        """✅ NEW: /user/auth endpoint থেকে session token পান"""
+        print(f"\n{'='*80}")
+        print(f"STEP 0: Getting Session Token via /user/auth")
+        print(f"{'='*80}")
+        
+        url = f"{self.base_url}/user/auth"
+        
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+            "Accept": "*/*",
+            "Origin": "https://og.com",
+            "Referer": "https://og.com/signup",
+        }
+        
+        payload = {
+            "ac": ac_value
+        }
+        
+        print(f"→ POST {url}")
+        print(f"  Payload: {json.dumps(payload, indent=2)}")
+        
+        try:
+            response = self.session.post(url, json=payload, headers=headers, timeout=30)
+            print(f"  Status Code: {response.status_code}")
+            
+            response_data = response.json()
+            print(f"  Response: {json.dumps(response_data, indent=2)}")
+            
+            # Response body থেকে session_token extract করুন
+            if 'data' in response_data and 'session_token' in response_data['data']:
+                self.session_token = response_data['data']['session_token']
+                print(f"  ✓ Session Token obtained: {self.session_token[:30]}...")
+            
+            # Response headers থেকেও check করুন
+            if 'session-token' in response.headers:
+                self.session_token = response.headers['session-token']
+                print(f"  ✓ Session Token from headers: {self.session_token[:30]}...")
+            
+            if 'tmx-session-id' in response.headers:
+                self.tmx_session_id = response.headers['tmx-session-id']
+                print(f"  ✓ TMX Session ID: {self.tmx_session_id}")
+            
+            return response.status_code == 200
+        
+        except Exception as e:
+            print(f"✗ Failed to get session token: {e}")
             return False
     
     def _make_request(self, method, endpoint, payload=None, headers=None):
@@ -74,7 +112,7 @@ class APIHandler:
         if headers:
             default_headers.update(headers)
         
-        # ✅ IMPORTANT: Headers set করুন request এ (lowercase)
+        # ✅ Headers set করুন request এ (lowercase)
         if self.session_token:
             default_headers["session-token"] = self.session_token
         if self.tmx_session_id:
