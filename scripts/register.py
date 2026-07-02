@@ -11,6 +11,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from scripts.api_handler import api_handler
 from scripts.telegram_handler import init_telegram, telegram_handler
 
+# ✅ AC Value (Fixed - same for all requests)
+AC_VALUE = "uc_flow_b6a72dd7-d9f7-4fc9-86ea-8f38d4c95688"
+
 class RegistrationWorkflow:
     def __init__(self):
         self.results = []
@@ -61,6 +64,14 @@ class RegistrationWorkflow:
         self.log(f"🌍 Country Code: {country_code}", "INFO")
         
         try:
+            # ✅ NEW: Step 0 - Get session token via /user/auth
+            self.log(f"→ Getting session token via /user/auth...", "INFO")
+            if not api_handler.get_session_token(AC_VALUE):
+                self.log(f"✗ Failed to get session token", "ERROR")
+                self.failed_emails.append(email)
+                return False
+            self.log(f"✓ Session token obtained", "SUCCESS")
+            
             # Step 1: Email পাঠান
             self.log(f"→ Sending email to {email}...", "INFO")
             response1 = api_handler.step1_send_email(email, recaptcha_token)
@@ -177,6 +188,7 @@ class RegistrationWorkflow:
             self.log(f"  Bot Token: {telegram_token[:20] if telegram_token else 'NOT SET'}...", "INFO")
             self.log(f"  Chat ID: {telegram_chat_id if telegram_chat_id else 'NOT SET'}", "INFO")
             self.log(f"  RecAPTCHA Token: {'Set' if recaptcha_token else 'Empty (will auto-handle)'}", "INFO")
+            self.log(f"  AC Value: {AC_VALUE}", "INFO")
             
             if not recaptcha_token:
                 self.log(f"⚠️  Warning: RecAPTCHA token not set, using empty token", "WARNING")
@@ -248,4 +260,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-            
+    
