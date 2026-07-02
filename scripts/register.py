@@ -77,9 +77,9 @@ class RegistrationWorkflow:
                 return False
             self.log(f"✓ Session token obtained", "SUCCESS")
             
-            # Step 1: Email পাঠান - EMPTY reCAPTCHA token ব্যবহার করুন
+            # Step 1: Email পাঠান - ✅ FIXED: recaptcha_token parameter remove করেছি
             self.log(f"→ Sending email to {email}...", "INFO")
-            response1 = api_handler.step1_send_email(email, recaptcha_token="")
+            response1 = api_handler.step1_send_email(email)
             
             if response1.get("error") or response1.get("code") != 0:
                 self.log(f"✗ Email send failed: {response1.get('error', 'Unknown error')}", "ERROR")
@@ -124,9 +124,9 @@ class RegistrationWorkflow:
             
             self.log(f"✓ Email OTP verified successfully", "SUCCESS")
             
-            # Step 4: Phone submit করুন - EMPTY reCAPTCHA token ব্যবহার করুন
+            # Step 4: Phone submit করুন - ✅ FIXED: recaptcha_token parameter remove করেছি
             self.log(f"→ Submitting phone number +{country_code}{phone}...", "INFO")
-            response3 = api_handler.step3_set_phone(phone, country_code, recaptcha_token="")
+            response3 = api_handler.step3_set_phone(phone, country_code)
             
             if response3.get("error") or response3.get("code") != 0:
                 self.log(f"✗ Phone submission failed: {response3.get('message', 'Unknown error')}", "ERROR")
@@ -158,7 +158,7 @@ class RegistrationWorkflow:
             if telegram_handler:
                 await telegram_handler.send_notification(
                     email,
-                    f"✅ সম্পূর্ণ হয়েছে!\n\n"
+                    f"✅ ��ম্পূর্ণ হয়েছে!\n\n"
                     f"📧 {email}\n"
                     f"📱 +{country_code}{phone}\n\n"
                     f"🎉 Account creation সম্পন্ন"
@@ -281,4 +281,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-                    
+            
