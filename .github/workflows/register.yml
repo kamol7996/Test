@@ -41,6 +41,13 @@ jobs:
           echo "Run ID: ${{ github.run_id }}"
           echo "====================================="
       
+      - name: Test Python Setup
+        run: |
+          echo "[✓] Python is ready"
+          python --version
+          echo "[✓] All packages installed"
+          pip list | grep -E "requests|python-telegram-bot"
+      
       - name: Run Registration Workflow
         env:
           EMAILS_DATA: ${{ secrets.EMAILS_DATA }}
@@ -49,7 +56,15 @@ jobs:
           RECAPTCHA_TOKEN: ${{ secrets.RECAPTCHA_TOKEN }}
         run: |
           echo "====== STARTING OG REGISTRATION AUTOMATION ======"
-          python scripts/register.py
+          echo "[DEBUG] Current directory: $(pwd)"
+          echo "[DEBUG] Files in current directory:"
+          ls -la
+          echo "[DEBUG] Files in scripts directory:"
+          ls -la scripts/
+          echo "[DEBUG] Python path:"
+          python -c "import sys; print('\n'.join(sys.path))"
+          echo "[DEBUG] Running main script..."
+          python -u scripts/register.py 2>&1
           echo "====== WORKFLOW COMPLETED ======"
       
       - name: Display logs
@@ -71,3 +86,4 @@ jobs:
           name: workflow-logs-${{ github.run_id }}
           path: workflow.log
           retention-days: 30
+          
