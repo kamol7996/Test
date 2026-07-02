@@ -9,6 +9,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from scripts.api_handler import api_handler
+from scripts.recaptcha_generator import recaptcha_generator
 from scripts.telegram_handler import init_telegram
 
 # ✅ AC Value (Fixed - same for all requests)
@@ -51,7 +52,7 @@ class RegistrationWorkflow:
             return []
     
     async def process_email(self, email_data):
-        """একটা ইমেইল process করুন - reCAPTCHA ছাড়াই"""
+        """একটা ইমেইল process করুন - reCAPTCHA token সহ"""
         global telegram_handler
         
         email = email_data.get("email", "")
@@ -69,7 +70,7 @@ class RegistrationWorkflow:
         self.log(f"🌍 Country Code: {country_code}", "INFO")
         
         try:
-            # ✅ Step 0 - Get session token via /user/auth (NO reCAPTCHA needed)
+            # ✅ Step 0 - Get session token via /user/auth
             self.log(f"→ Getting session token via /user/auth...", "INFO")
             if not api_handler.get_session_token(AC_VALUE):
                 self.log(f"✗ Failed to get session token", "ERROR")
@@ -77,9 +78,20 @@ class RegistrationWorkflow:
                 return False
             self.log(f"✓ Session token obtained", "SUCCESS")
             
-            # Step 1: Email পাঠান - ✅ FIXED: recaptcha_token parameter remove করেছি
+            # ✅ Step 0.5 - Generate reCAPTCHA token
+            self.log(f"→ Generating reCAPTCHA token...", "INFO")
+            recaptcha_token = await recaptcha_generator.get_fresh_token()
+            
+            if not recaptcha_token:
+                self.log(f"✗ Failed to generate reCAPTCHA token", "ERROR")
+                self.failed_emails.append(email)
+                return False
+            
+            self.log(f"✓ reCAPTCHA token generated", "SUCCESS")
+            
+            # Step 1: Email পাঠান - reCAPTCHA token সহ
             self.log(f"→ Sending email to {email}...", "INFO")
-            response1 = api_handler.step1_send_email(email)
+            response1 = api_handler.step1_send_email(email, recaptcha_token)
             
             if response1.get("error") or response1.get("code") != 0:
                 self.log(f"✗ Email send failed: {response1.get('error', 'Unknown error')}", "ERROR")
@@ -124,9 +136,20 @@ class RegistrationWorkflow:
             
             self.log(f"✓ Email OTP verified successfully", "SUCCESS")
             
-            # Step 4: Phone submit করুন - ✅ FIXED: recaptcha_token parameter remove করেছি
+            # ✅ Step 3.5 - Generate new reCAPTCHA token for phone step
+            self.log(f"→ Generating new reCAPTCHA token for phone step...", "INFO")
+            recaptcha_token_phone = await recaptcha_generator.get_fresh_token()
+            
+            if not recaptcha_token_phone:
+                self.log(f"✗ Failed to generate reCAPTCHA token for phone", "ERROR")
+                self.failed_emails.append(email)
+                return False
+            
+            self.log(f"✓ reCAPTCHA token generated for phone step", "SUCCESS")
+            
+            # Step 4: Phone submit করুন - reCAPTCHA token সহ
             self.log(f"→ Submitting phone number +{country_code}{phone}...", "INFO")
-            response3 = api_handler.step3_set_phone(phone, country_code)
+            response3 = api_handler.step3_set_phone(phone, country_code, recaptcha_token_phone)
             
             if response3.get("error") or response3.get("code") != 0:
                 self.log(f"✗ Phone submission failed: {response3.get('message', 'Unknown error')}", "ERROR")
@@ -158,7 +181,7 @@ class RegistrationWorkflow:
             if telegram_handler:
                 await telegram_handler.send_notification(
                     email,
-                    f"✅ ��ম্পূর্ণ হয়েছে!\n\n"
+                    f"✅ সম্পূর্ণ হয়েছে!\n\n"
                     f"📧 {email}\n"
                     f"📱 +{country_code}{phone}\n\n"
                     f"🎉 Account creation সম্পন্ন"
@@ -182,7 +205,7 @@ class RegistrationWorkflow:
             return False
     
     async def run_workflow(self):
-        """সম্পূর্ণ workflow চালান - reCAPTCHA ছাড়াই"""
+        """সম্পূর্ণ workflow চালান"""
         global telegram_handler
         
         try:
@@ -201,7 +224,7 @@ class RegistrationWorkflow:
             self.log(f"  Bot Token: {telegram_token[:20] if telegram_token else 'NOT SET'}...", "INFO")
             self.log(f"  Chat ID: {telegram_chat_id if telegram_chat_id else 'NOT SET'}", "INFO")
             self.log(f"  AC Value: {AC_VALUE}", "INFO")
-            self.log(f"  Note: reCAPTCHA handling by API (no token needed)", "INFO")
+            self.log(f"  Note: Using reCAPTCHA Enterprise token generation", "INFO")
             
             # Telegram bot initialize করুন (optional)
             if telegram_token and telegram_chat_id:
@@ -281,4 +304,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-            
