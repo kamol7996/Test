@@ -4,7 +4,9 @@ import sys
 import asyncio
 import json
 from datetime import datetime
-sys.path.insert(0, '/github/workspace')
+
+# Add the scripts directory to the path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from scripts.api_handler import api_handler
 from scripts.telegram_handler import init_telegram, telegram_handler
@@ -172,8 +174,8 @@ class RegistrationWorkflow:
             
             self.log(f"", "INFO")
             self.log(f"Configuration:", "INFO")
-            self.log(f"  Bot Token: {telegram_token[:20]}...", "INFO")
-            self.log(f"  Chat ID: {telegram_chat_id}", "INFO")
+            self.log(f"  Bot Token: {telegram_token[:20] if telegram_token else 'NOT SET'}...", "INFO")
+            self.log(f"  Chat ID: {telegram_chat_id if telegram_chat_id else 'NOT SET'}", "INFO")
             self.log(f"  RecAPTCHA Token: {'Set' if recaptcha_token else 'Empty (will auto-handle)'}", "INFO")
             
             if not recaptcha_token:
