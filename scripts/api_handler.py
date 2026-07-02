@@ -34,33 +34,12 @@ class APIHandler:
             self.cookies = self.session.cookies.get_dict()
             print(f"  Cookies received: {list(self.cookies.keys())}")
             
-            # Step 2: GET /authentication/email (initial check)
-            print(f"→ Calling GET /authentication/email for session initialization...")
-            response = self.session.get(
-                f"{self.base_url}/authentication/email",
-                headers=headers,
-                timeout=30
-            )
-            print(f"  Status: {response.status_code}")
+            # ✅ NOTE: Session tokens আসবে প্রথম POST request এর response headers এ
+            # তাই এখানে GET call করার দরকার নেই
+            print(f"  ✓ Session initialized successfully")
+            print(f"  ✓ Tokens will be obtained from first API call")
             
-            if response.status_code == 200:
-                data = response.json()
-                print(f"  Response: {json.dumps(data, indent=2)}")
-                
-                # Tokens extract করুন
-                if "data" in data:
-                    self.session_token = data["data"].get("session_token")
-                    self.tmx_session_id = data["data"].get("tmx_session_id")
-                    self.anonymous_id = data["data"].get("anonymous_id")
-                    
-                    print(f"  ✓ Session Token: {self.session_token[:30] if self.session_token else 'None'}...")
-                    print(f"  ✓ TMX Session ID: {self.tmx_session_id}")
-                    print(f"  ✓ Anonymous ID: {self.anonymous_id}")
-                
-                return True
-            else:
-                print(f"  Response: {response.text[:200]}")
-                return False
+            return True
         
         except Exception as e:
             print(f"✗ Session initialization failed: {e}")
@@ -114,8 +93,10 @@ class APIHandler:
             # Response headers থেকে tokens extract করুন
             if 'X-Session-Token' in response.headers:
                 self.session_token = response.headers['X-Session-Token']
+                print(f"  ✓ Updated Session Token from response headers")
             if 'X-Tmx-Session-Id' in response.headers:
                 self.tmx_session_id = response.headers['X-Tmx-Session-Id']
+                print(f"  ✓ Updated TMX Session ID from response headers")
             
             return response_data
         
