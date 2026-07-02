@@ -27,10 +27,12 @@ class RecaptchaTokenGenerator:
                         '--disable-blink-features=AutomationControlled',
                         '--no-sandbox',
                         '--disable-gpu',
+                        '--disable-dev-shm-usage',
                     ]
                 )
                 
-                page = await browser.new_page()
+                context = await browser.new_context()
+                page = await context.new_page()
                 
                 # User agent সেট করুন
                 await page.set_extra_http_headers({
@@ -39,58 +41,73 @@ class RecaptchaTokenGenerator:
                 
                 print(f"→ Navigating to og.com/signup...")
                 try:
-                    await page.goto("https://og.com/signup", wait_until="networkidle", timeout=30000)
-                    print(f"  ✓ Page loaded successfully")
+                    await page.goto("https://og.com/signup", wait_until="domcontentloaded", timeout=30000)
+                    print(f"  ✓ Page loaded")
                 except Exception as e:
-                    print(f"  ⚠️ Navigation warning: {e}")
+                    print(f"  ⚠️ Navigation: {e}")
                 
-                print(f"→ Waiting for reCAPTCHA to load...")
-                await page.wait_for_timeout(3000)  # 3 সেকেন্ড অপেক্ষা
+                # reCAPTCHA script load হওয়ার জন্য অপেক্ষা করুন
+                print(f"→ Waiting for reCAPTCHA script...")
+                await page.wait_for_timeout(2000)
                 
-                # reCAPTCHA token এক্সট্র্যাক্ট করুন
-                print(f"→ Extracting reCAPTCHA token...")
+                # Token generate করুন
+                print(f"→ Generating token...")
                 token = await page.evaluate(f"""
                     async () => {{
+                        // ইতিমধ্যে token থাকলে তা ফিরিয়ে দিন
+                        if (window.__recaptchaToken) {{
+                            return window.__recaptchaToken;
+                        }}
+                        
                         return new Promise((resolve, reject) => {{
                             let attempts = 0;
-                            const checkGrecaptcha = setInterval(() => {{
+                            
+                            const tryExecute = () => {{
                                 attempts++;
-                                if (window.grecaptcha) {{
-                                    clearInterval(checkGrecaptcha);
-                                    
+                                console.log('Attempt ' + attempts, 'grecaptcha:', !!window.grecaptcha);
+                                
+                                if (!window.grecaptcha) {{
+                                    if (attempts < 50) {{
+                                        setTimeout(tryExecute, 100);
+                                    }} else {{
+                                        reject(new Error('grecaptcha not available'));
+                                    }}
+                                    return;
+                                }}
+                                
+                                try {{
                                     if (window.grecaptcha.enterprise) {{
-                                        // reCAPTCHA Enterprise v3
-                                        grecaptcha.enterprise.ready(() => {{
-                                            grecaptcha.enterprise.execute('{self.site_key}', {{action: 'submit'}})
+                                        window.grecaptcha.enterprise.ready(() => {{
+                                            window.grecaptcha.enterprise.execute('{self.site_key}', {{action: 'submit'}})
                                                 .then(token => {{
+                                                    window.__recaptchaToken = token;
                                                     resolve(token);
                                                 }})
-                                                .catch(error => {{
-                                                    reject(error);
-                                                }});
+                                                .catch(e => reject(e));
+                                        }});
+                                    }} else if (window.grecaptcha.ready) {{
+                                        window.grecaptcha.ready(() => {{
+                                            window.grecaptcha.execute('{self.site_key}', {{action: 'submit'}})
+                                                .then(token => {{
+                                                    window.__recaptchaToken = token;
+                                                    resolve(token);
+                                                }})
+                                                .catch(e => reject(e));
                                         }});
                                     }} else {{
-                                        // reCAPTCHA v2/v3 fallback
-                                        grecaptcha.ready(() => {{
-                                            grecaptcha.execute('{self.site_key}', {{action: 'submit'}})
-                                                .then(token => {{
-                                                    resolve(token);
-                                                }})
-                                                .catch(error => {{
-                                                    reject(error);
-                                                }});
-                                        }});
+                                        reject(new Error('grecaptcha.ready not available'));
                                     }}
-                                }} else if (attempts > 150) {{
-                                    clearInterval(checkGrecaptcha);
-                                    reject(new Error('reCAPTCHA not found after 15 seconds'));
+                                }} catch (e) {{
+                                    reject(e);
                                 }}
-                            }}, 100);
+                            }};
                             
+                            tryExecute();
+                            
+                            // Timeout: 20 seconds
                             setTimeout(() => {{
-                                clearInterval(checkGrecaptcha);
                                 reject(new Error('Token generation timeout'));
-                            }}, 15000);
+                            }}, 20000);
                         }});
                     }}
                 """)
@@ -98,18 +115,15 @@ class RecaptchaTokenGenerator:
                 self.token = token
                 self.token_timestamp = datetime.now()
                 
-                print(f"✅ Token generated successfully!")
-                print(f"   Length: {len(token)} characters")
-                print(f"   First 50 chars: {token[:50]}...")
-                print(f"   Generated at: {self.token_timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+                print(f"✅ Token generated!")
+                print(f"   Length: {len(token)} chars")
+                print(f"   First 40 chars: {token[:40]}...")
                 
                 await browser.close()
                 return token
         
         except Exception as e:
             print(f"❌ Token generation failed: {e}")
-            import traceback
-            print(f"   Traceback: {traceback.format_exc()}")
             return None
     
     async def get_fresh_token(self):
