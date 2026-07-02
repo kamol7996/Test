@@ -7,9 +7,64 @@ from datetime import datetime
 class APIHandler:
     def __init__(self):
         self.base_url = "https://og.com/api/proxy/private/authnz/v1"
+        self.session = requests.Session()
         self.session_token = None
         self.tmx_session_id = None
         self.anonymous_id = None
+        self.cookies = {}
+    
+    def initialize_session(self):
+        """প্রথমে signup page visit করে initial session তৈরি করুন"""
+        print(f"\n{'='*80}")
+        print(f"INITIALIZING SESSION")
+        print(f"{'='*80}")
+        
+        try:
+            # Step 1: Signup page visit করুন
+            print(f"→ Visiting signup page...")
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            }
+            
+            response = self.session.get("https://og.com/signup", headers=headers, timeout=30)
+            print(f"  Status: {response.status_code}")
+            
+            # Cookies save করুন
+            self.cookies = self.session.cookies.get_dict()
+            print(f"  Cookies received: {list(self.cookies.keys())}")
+            
+            # Step 2: GET /authentication/email (initial check)
+            print(f"→ Calling GET /authentication/email for session initialization...")
+            response = self.session.get(
+                f"{self.base_url}/authentication/email",
+                headers=headers,
+                timeout=30
+            )
+            print(f"  Status: {response.status_code}")
+            
+            if response.status_code == 200:
+                data = response.json()
+                print(f"  Response: {json.dumps(data, indent=2)}")
+                
+                # Tokens extract করুন
+                if "data" in data:
+                    self.session_token = data["data"].get("session_token")
+                    self.tmx_session_id = data["data"].get("tmx_session_id")
+                    self.anonymous_id = data["data"].get("anonymous_id")
+                    
+                    print(f"  ✓ Session Token: {self.session_token[:30] if self.session_token else 'None'}...")
+                    print(f"  ✓ TMX Session ID: {self.tmx_session_id}")
+                    print(f"  ✓ Anonymous ID: {self.anonymous_id}")
+                
+                return True
+            else:
+                print(f"  Response: {response.text[:200]}")
+                return False
+        
+        except Exception as e:
+            print(f"✗ Session initialization failed: {e}")
+            return False
     
     def _make_request(self, method, endpoint, payload=None, headers=None):
         """API request করুন"""
@@ -20,15 +75,17 @@ class APIHandler:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
             "Accept": "*/*",
             "Origin": "https://og.com",
+            "Referer": "https://og.com/signup",
         }
         
         if headers:
             default_headers.update(headers)
         
+        # Tokens add করুন
         if self.session_token:
-            default_headers["Session-Token"] = self.session_token
+            default_headers["Authorization"] = f"Bearer {self.session_token}"
         if self.tmx_session_id:
-            default_headers["Tmx-Session-Id"] = self.tmx_session_id
+            default_headers["X-Tmx-Session-Id"] = self.tmx_session_id
         if self.anonymous_id:
             default_headers["X-Anonymous-Id"] = self.anonymous_id
         
@@ -36,6 +93,7 @@ class APIHandler:
         print(f"  Method: {method}")
         print(f"  Endpoint: {endpoint}")
         print(f"  URL: {url}")
+        print(f"  Headers: {default_headers}")
         if payload:
             payload_display = payload.copy()
             if 'recaptcha_response_token' in payload_display:
@@ -44,14 +102,20 @@ class APIHandler:
         
         try:
             if method == "POST":
-                response = requests.post(url, json=payload, headers=default_headers, timeout=30)
+                response = self.session.post(url, json=payload, headers=default_headers, timeout=30)
             elif method == "GET":
-                response = requests.get(url, headers=default_headers, timeout=30)
+                response = self.session.get(url, headers=default_headers, timeout=30)
             
             print(f"\n[API RESPONSE]")
             print(f"  Status Code: {response.status_code}")
             response_data = response.json()
             print(f"  Response: {json.dumps(response_data, indent=2)}")
+            
+            # Response headers থেকে tokens extract করুন
+            if 'X-Session-Token' in response.headers:
+                self.session_token = response.headers['X-Session-Token']
+            if 'X-Tmx-Session-Id' in response.headers:
+                self.tmx_session_id = response.headers['X-Tmx-Session-Id']
             
             return response_data
         
@@ -76,10 +140,7 @@ class APIHandler:
         response = self._make_request(
             "POST",
             "/authentication/email",
-            payload=payload,
-            headers={
-                "Referer": "https://og.com/signup"
-            }
+            payload=payload
         )
         
         return response
@@ -95,10 +156,7 @@ class APIHandler:
         response = self._make_request(
             "POST",
             "/authentication/email/verify-email-otp",
-            payload=payload,
-            headers={
-                "Referer": "https://og.com/authentication/email-verify-otp"
-            }
+            payload=payload
         )
         
         return response
@@ -120,10 +178,7 @@ class APIHandler:
         response = self._make_request(
             "POST",
             "/registration/email/set-phone",
-            payload=payload,
-            headers={
-                "Referer": "https://og.com/signup/phone-enter"
-            }
+            payload=payload
         )
         
         return response
