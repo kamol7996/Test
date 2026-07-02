@@ -48,7 +48,7 @@ class APIHandler:
             return False
     
     def get_session_token(self, ac_value):
-        """✅ NEW: /user/auth endpoint থেকে session token পান"""
+        """✅ FIXED: /user/auth endpoint থেকে session token পান - reCAPTCHA ছাড়াই"""
         print(f"\n{'='*80}")
         print(f"STEP 0: Getting Session Token via /user/auth")
         print(f"{'='*80}")
@@ -166,8 +166,8 @@ class APIHandler:
             print(f"[✗ ERROR] API Request failed: {e}")
             return {"error": str(e), "code": -1}
     
-    def step1_send_email(self, email, recaptcha_token):
-        """Step 1: Email পাঠান"""
+    def step1_send_email(self, email, recaptcha_token=""):
+        """Step 1: Email পাঠান - reCAPTCHA টোকেন optional"""
         print(f"\n{'='*80}")
         print(f"STEP 1: Send Email")
         print(f"{'='*80}")
@@ -175,7 +175,7 @@ class APIHandler:
         payload = {
             "email": email,
             "preferred_locale": "en",
-            "recaptcha_response_token": recaptcha_token,
+            "recaptcha_response_token": recaptcha_token if recaptcha_token else "",
             "subscribe_newsletters": True,
             "utm": {}
         }
@@ -204,7 +204,7 @@ class APIHandler:
         
         return response
     
-    def step3_set_phone(self, phone_number, country_code, recaptcha_token):
+    def step3_set_phone(self, phone_number, country_code, recaptcha_token=""):
         """Step 3: Phone Number Submit করুন"""
         print(f"\n{'='*80}")
         print(f"STEP 3: Set Phone Number")
@@ -215,7 +215,7 @@ class APIHandler:
         
         payload = {
             "phone": full_phone,
-            "recaptcha_response_token": recaptcha_token
+            "recaptcha_response_token": recaptcha_token if recaptcha_token else ""
         }
         
         response = self._make_request(
@@ -227,3 +227,4 @@ class APIHandler:
         return response
 
 api_handler = APIHandler()
+            
