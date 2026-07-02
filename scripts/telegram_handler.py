@@ -11,6 +11,7 @@ class TelegramHandler:
         self.chat_id = chat_id
         self.otp_data = {}  # {email: otp_code}
         self.waiting_for_otp = {}  # {email: True/False}
+        self.timeout_seconds = 5  # Reduced timeout for bot connection
     
     async def send_notification(self, email, message):
         """Notification পাঠান"""
@@ -29,14 +30,25 @@ class TelegramHandler:
         print(f"\n[TELEGRAM NOTIFICATION]")
         print(full_message)
         print("[END NOTIFICATION]\n")
+        
         try:
-            await self.bot.send_message(
-                chat_id=self.chat_id,
-                text=full_message
+            print(f"[ATTEMPT] Sending Telegram message to chat {self.chat_id}...")
+            await asyncio.wait_for(
+                self.bot.send_message(
+                    chat_id=self.chat_id,
+                    text=full_message
+                ),
+                timeout=self.timeout_seconds
             )
             print(f"[✓] Telegram message sent successfully")
+        except asyncio.TimeoutError:
+            print(f"[✗] Telegram send TIMEOUT after {self.timeout_seconds}s")
+            print(f"[⚠️] WARNING: Bot is not responding. Check:")
+            print(f"     1. Bot token is correct")
+            print(f"     2. Chat ID is correct")
+            print(f"     3. Bot is active in your Telegram")
         except Exception as e:
-            print(f"[✗] Telegram send failed: {e}")
+            print(f"[✗] Telegram send failed: {type(e).__name__}: {e}")
     
     async def wait_for_otp(self, email, timeout=300):
         """OTP input অপেক্ষা করুন"""
@@ -48,6 +60,8 @@ class TelegramHandler:
         )
         
         print(f"\n[WAITING] OTP অপেক্ষা করছি {email} এর জন্য ({timeout}s)...")
+        print(f"[INFO] যেহেতু Telegram এর সাথে auto-sync হবে না, আপনি manually input দিতে পারেন\n")
+        
         self.waiting_for_otp[email] = True
         
         # Timeout loop
@@ -99,6 +113,7 @@ async def init_telegram(bot_token, chat_id):
     """Telegram bot initialize করুন"""
     global telegram_handler
     telegram_handler = TelegramHandler(bot_token, chat_id)
-    print("[✓] Telegram Bot initialized successfully")
-    print(f"[✓] Bot Token: {bot_token[:20]}...")
-    print(f"[✓] Chat ID: {chat_id}\n")
+    print("[✓] Telegram Handler initialized")
+    print(f"[INFO] Bot Token: {bot_token[:20] if bot_token else 'NOT SET'}...")
+    print(f"[INFO] Chat ID: {chat_id if chat_id else 'NOT SET'}")
+    print(f"[INFO] Timeout: {telegram_handler.timeout_seconds}s\n")
