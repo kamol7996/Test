@@ -36,7 +36,6 @@ class APIHandler:
             print(f"  Cookies received: {list(self.cookies.keys())}")
             
             # Response থেকে ac value খুঁজুন (যদি থাকে)
-            # সাধারণত এটা page source এ থাকে
             if 'uc_flow' in response.text:
                 print(f"  ✓ UC flow found in response")
             
@@ -48,7 +47,7 @@ class APIHandler:
             return False
     
     def get_session_token(self, ac_value):
-        """✅ /user/auth endpoint থেকে session token পান - এটাই reCAPTCHA bypass"""
+        """✅ /user/auth endpoint থেকে session token পান"""
         print(f"\n{'='*80}")
         print(f"STEP 0: Getting Session Token via /user/auth")
         print(f"{'='*80}")
@@ -128,7 +127,8 @@ class APIHandler:
         if payload:
             payload_display = payload.copy()
             if 'recaptcha_response_token' in payload_display:
-                payload_display['recaptcha_response_token'] = payload_display['recaptcha_response_token'][:30] + "..."
+                token_preview = payload_display['recaptcha_response_token']
+                payload_display['recaptcha_response_token'] = token_preview[:30] + "..." if len(token_preview) > 30 else token_preview
             print(f"  Payload: {json.dumps(payload_display, indent=2)}")
         
         try:
@@ -166,16 +166,16 @@ class APIHandler:
             print(f"[✗ ERROR] API Request failed: {e}")
             return {"error": str(e), "code": -1}
     
-    def step1_send_email(self, email):
-        """✅ FIXED: Step 1 - Email পাঠান (reCAPTCHA field remove করেছি)"""
+    def step1_send_email(self, email, recaptcha_token):
+        """✅ Step 1 - Email পাঠান (reCAPTCHA token সহ)"""
         print(f"\n{'='*80}")
         print(f"STEP 1: Send Email")
         print(f"{'='*80}")
         
-        # ✅ reCAPTCHA field বাদ দিয়েছি - Session token যথেষ্ট
         payload = {
             "email": email,
             "preferred_locale": "en",
+            "recaptcha_response_token": recaptcha_token,
             "subscribe_newsletters": True,
             "utm": {}
         }
@@ -204,8 +204,8 @@ class APIHandler:
         
         return response
     
-    def step3_set_phone(self, phone_number, country_code):
-        """✅ FIXED: Step 3 - Phone Number Submit করুন (reCAPTCHA field remove করেছি)"""
+    def step3_set_phone(self, phone_number, country_code, recaptcha_token):
+        """✅ Step 3 - Phone Number Submit করুন (reCAPTCHA token সহ)"""
         print(f"\n{'='*80}")
         print(f"STEP 3: Set Phone Number")
         print(f"{'='*80}")
@@ -213,9 +213,9 @@ class APIHandler:
         # Country code এর সাথে phone format করুন
         full_phone = f"+{country_code}{phone_number}"
         
-        # ✅ reCAPTCHA field বাদ দিয়েছি - Session token যথেষ্ট
         payload = {
-            "phone": full_phone
+            "phone": full_phone,
+            "recaptcha_response_token": recaptcha_token
         }
         
         response = self._make_request(
@@ -227,4 +227,3 @@ class APIHandler:
         return response
 
 api_handler = APIHandler()
-                
