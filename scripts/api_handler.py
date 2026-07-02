@@ -34,11 +34,25 @@ class APIHandler:
             self.cookies = self.session.cookies.get_dict()
             print(f"  Cookies received: {list(self.cookies.keys())}")
             
-            # ✅ NOTE: Session tokens আসবে প্রথম POST request এর response headers এ
-            # তাই এখানে GET call করার দরকার নেই
-            print(f"  ✓ Session initialized successfully")
-            print(f"  ✓ Tokens will be obtained from first API call")
+            # Step 2: Response headers থেকে tokens extract করুন (যদি থাকে)
+            if 'session-token' in response.headers:
+                self.session_token = response.headers['session-token']
+                print(f"  ✓ Session Token from response: {self.session_token[:30]}...")
             
+            if 'tmx-session-id' in response.headers:
+                self.tmx_session_id = response.headers['tmx-session-id']
+                print(f"  ✓ TMX Session ID from response: {self.tmx_session_id}")
+            
+            if 'x-anonymous-id' in response.headers:
+                self.anonymous_id = response.headers['x-anonymous-id']
+                print(f"  ✓ Anonymous ID from response: {self.anonymous_id}")
+            
+            # যদি headers থেকে না পায়, তাহলে dummy values set করুন
+            # যা প্রথম API call এ update হবে
+            if not self.session_token:
+                print(f"  ℹ️  Session token will be obtained from first API call")
+            
+            print(f"  ✓ Session initialized successfully")
             return True
         
         except Exception as e:
@@ -60,13 +74,13 @@ class APIHandler:
         if headers:
             default_headers.update(headers)
         
-        # Tokens add করুন
+        # ✅ IMPORTANT: Headers set করুন request এ (lowercase)
         if self.session_token:
-            default_headers["Authorization"] = f"Bearer {self.session_token}"
+            default_headers["session-token"] = self.session_token
         if self.tmx_session_id:
-            default_headers["X-Tmx-Session-Id"] = self.tmx_session_id
+            default_headers["tmx-session-id"] = self.tmx_session_id
         if self.anonymous_id:
-            default_headers["X-Anonymous-Id"] = self.anonymous_id
+            default_headers["x-anonymous-id"] = self.anonymous_id
         
         print(f"\n[API REQUEST]")
         print(f"  Method: {method}")
@@ -87,16 +101,26 @@ class APIHandler:
             
             print(f"\n[API RESPONSE]")
             print(f"  Status Code: {response.status_code}")
-            response_data = response.json()
-            print(f"  Response: {json.dumps(response_data, indent=2)}")
             
-            # Response headers থেকে tokens extract করুন
-            if 'X-Session-Token' in response.headers:
-                self.session_token = response.headers['X-Session-Token']
+            try:
+                response_data = response.json()
+                print(f"  Response: {json.dumps(response_data, indent=2)}")
+            except:
+                response_data = {"error": response.text, "code": -1}
+                print(f"  Response: {response.text[:200]}")
+            
+            # ✅ Response headers থেকে tokens extract করুন (lowercase)
+            if 'session-token' in response.headers:
+                self.session_token = response.headers['session-token']
                 print(f"  ✓ Updated Session Token from response headers")
-            if 'X-Tmx-Session-Id' in response.headers:
-                self.tmx_session_id = response.headers['X-Tmx-Session-Id']
+            
+            if 'tmx-session-id' in response.headers:
+                self.tmx_session_id = response.headers['tmx-session-id']
                 print(f"  ✓ Updated TMX Session ID from response headers")
+            
+            if 'x-anonymous-id' in response.headers:
+                self.anonymous_id = response.headers['x-anonymous-id']
+                print(f"  ✓ Updated Anonymous ID from response headers")
             
             return response_data
         
