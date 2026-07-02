@@ -45,14 +45,6 @@ class RegistrationWorkflow:
             return []
     
     async def process_email(self, email_data, recaptcha_token):
-# Line ৪৭ এর পরে
-# ✅ FIX: API session initialize করুন
-self.log(f"→ Initializing API session...", "INFO")
-if not api_handler.initialize_session():
-    self.log(f"✗ Failed to initialize API session", "ERROR")
-    self.log(f"⚠️  Cannot proceed without proper session tokens", "ERROR")
-    return
-self.log(f"✓ API session initialized successfully", "SUCCESS")
         """একটা ইমেইল process করুন"""
         email = email_data.get("email", "")
         phone = email_data.get("phone_number", "")
@@ -193,6 +185,14 @@ self.log(f"✓ API session initialized successfully", "SUCCESS")
             # Telegram bot initialize করুন
             await init_telegram(telegram_token, telegram_chat_id)
             
+            # ✅ FIX: API session initialize করুন (IMPORTANT!)
+            self.log(f"→ Initializing API session...", "INFO")
+            if not api_handler.initialize_session():
+                self.log(f"✗ Failed to initialize API session", "ERROR")
+                self.log(f"⚠️  Cannot proceed without proper session tokens", "ERROR")
+                return
+            self.log(f"✓ API session initialized successfully", "SUCCESS")
+            
             # Emails load করুন
             emails_data = self.load_emails(emails_json)
             self.total_emails = len(emails_data)
@@ -248,3 +248,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+            
