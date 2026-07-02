@@ -9,10 +9,13 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from scripts.api_handler import api_handler
-from scripts.telegram_handler import init_telegram, telegram_handler
+from scripts.telegram_handler import init_telegram
 
 # ✅ AC Value (Fixed - same for all requests)
 AC_VALUE = "uc_flow_b6a72dd7-d9f7-4fc9-86ea-8f38d4c95688"
+
+# Global telegram handler (will be initialized if needed)
+telegram_handler = None
 
 class RegistrationWorkflow:
     def __init__(self):
@@ -49,6 +52,8 @@ class RegistrationWorkflow:
     
     async def process_email(self, email_data):
         """একটা ইমেইল process করুন - reCAPTCHA ছাড়াই"""
+        global telegram_handler
+        
         email = email_data.get("email", "")
         phone = email_data.get("phone_number", "")
         country_code = email_data.get("country_code", "")
@@ -178,6 +183,8 @@ class RegistrationWorkflow:
     
     async def run_workflow(self):
         """সম্পূর্ণ workflow চালান - reCAPTCHA ছাড়াই"""
+        global telegram_handler
+        
         try:
             self.log(f"\n{'='*80}", "INFO")
             self.log(f"🚀 OG.COM REGISTRATION AUTOMATION WORKFLOW STARTED", "INFO")
@@ -198,9 +205,18 @@ class RegistrationWorkflow:
             
             # Telegram bot initialize করুন (optional)
             if telegram_token and telegram_chat_id:
-                await init_telegram(telegram_token, telegram_chat_id)
+                try:
+                    await init_telegram(telegram_token, telegram_chat_id)
+                    # ✅ Import করুন global instance
+                    from scripts import telegram_handler as tg_module
+                    telegram_handler = tg_module.telegram_handler
+                    self.log(f"✓ Telegram initialized successfully", "SUCCESS")
+                except Exception as e:
+                    self.log(f"⚠️ Telegram initialization failed: {e}", "WARNING")
+                    telegram_handler = None
             else:
                 self.log(f"⚠️ Telegram not configured - notifications disabled", "WARNING")
+                telegram_handler = None
             
             # ✅ API session initialize করুন
             self.log(f"→ Initializing API session...", "INFO")
@@ -265,4 +281,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-            
+                    
