@@ -25,7 +25,7 @@ class RegistrationWorkflow:
     def log(self, message, level="INFO"):
         """সবকিছু log করুন"""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_message = f"[{timestamp}] [{level}] {message}"
+        log_message = f"***{timestamp}*** ***{level}*** {message}"
         print(log_message)
         
         # File এও save করুন
@@ -47,8 +47,8 @@ class RegistrationWorkflow:
             self.log(f"✗ Failed to parse emails JSON: {e}", "ERROR")
             return []
     
-    async def process_email(self, email_data, recaptcha_token):
-        """একটা ইমেইল process করুন"""
+    async def process_email(self, email_data):
+        """একটা ইমেইল process করুন - reCAPTCHA ছাড়াই"""
         email = email_data.get("email", "")
         phone = email_data.get("phone_number", "")
         country_code = email_data.get("country_code", "")
@@ -64,7 +64,7 @@ class RegistrationWorkflow:
         self.log(f"🌍 Country Code: {country_code}", "INFO")
         
         try:
-            # ✅ NEW: Step 0 - Get session token via /user/auth
+            # ✅ Step 0 - Get session token via /user/auth (NO reCAPTCHA needed)
             self.log(f"→ Getting session token via /user/auth...", "INFO")
             if not api_handler.get_session_token(AC_VALUE):
                 self.log(f"✗ Failed to get session token", "ERROR")
@@ -72,9 +72,9 @@ class RegistrationWorkflow:
                 return False
             self.log(f"✓ Session token obtained", "SUCCESS")
             
-            # Step 1: Email পাঠান
+            # Step 1: Email পাঠান - EMPTY reCAPTCHA token ব্যবহার করুন
             self.log(f"→ Sending email to {email}...", "INFO")
-            response1 = api_handler.step1_send_email(email, recaptcha_token)
+            response1 = api_handler.step1_send_email(email, recaptcha_token="")
             
             if response1.get("error") or response1.get("code") != 0:
                 self.log(f"✗ Email send failed: {response1.get('error', 'Unknown error')}", "ERROR")
@@ -84,17 +84,22 @@ class RegistrationWorkflow:
             self.log(f"✓ Email sent successfully", "SUCCESS")
             
             # Telegram notification
-            await telegram_handler.send_notification(
-                email,
-                f"📬 Email OTP পাঠানো হয়েছে\n"
-                f"📧 {email}\n\n"
-                f"⏱️ 300 সেকেন্ডের মধ্যে কোড দিন:\n\n"
-                f"/otp_{email.split('@')[0]} 123456"
-            )
+            if telegram_handler:
+                await telegram_handler.send_notification(
+                    email,
+                    f"📬 Email OTP পাঠানো হয়েছে\n"
+                    f"📧 {email}\n\n"
+                    f"⏱️ 300 সেকেন্ডের মধ্যে কোড দিন:\n\n"
+                    f"/otp_{email.split('@')[0]} 123456"
+                )
             
             # Step 2: Admin থেকে OTP অপেক্ষা করুন
             self.log(f"→ Waiting for OTP input from admin (timeout: 300s)...", "INFO")
-            otp_email = await telegram_handler.wait_for_otp(email, timeout=300)
+            if telegram_handler:
+                otp_email = await telegram_handler.wait_for_otp(email, timeout=300)
+            else:
+                self.log(f"⚠️ Telegram not initialized, skipping OTP wait", "WARNING")
+                otp_email = None
             
             if not otp_email:
                 self.log(f"✗ OTP timeout for {email}", "ERROR")
@@ -114,9 +119,9 @@ class RegistrationWorkflow:
             
             self.log(f"✓ Email OTP verified successfully", "SUCCESS")
             
-            # Step 4: Phone submit করুন
+            # Step 4: Phone submit করুন - EMPTY reCAPTCHA token ব্যবহার করুন
             self.log(f"→ Submitting phone number +{country_code}{phone}...", "INFO")
-            response3 = api_handler.step3_set_phone(phone, country_code, recaptcha_token)
+            response3 = api_handler.step3_set_phone(phone, country_code, recaptcha_token="")
             
             if response3.get("error") or response3.get("code") != 0:
                 self.log(f"✗ Phone submission failed: {response3.get('message', 'Unknown error')}", "ERROR")
@@ -126,13 +131,14 @@ class RegistrationWorkflow:
             self.log(f"✓ Phone number submitted successfully", "SUCCESS")
             
             # Telegram notification - Phone OTP পাঠানো হয়েছে
-            await telegram_handler.send_notification(
-                email,
-                f"📱 Phone OTP পাঠানো হয়েছে\n"
-                f"+{country_code}{phone}\n\n"
-                f"⚠️ এটা verify করবেন না\n"
-                f"শুধু 3 বার resend হবে (70s আপর)"
-            )
+            if telegram_handler:
+                await telegram_handler.send_notification(
+                    email,
+                    f"📱 Phone OTP পাঠানো হয়েছে\n"
+                    f"+{country_code}{phone}\n\n"
+                    f"⚠️ এটা verify করবেন না\n"
+                    f"শুধু 3 বার resend হবে (70s আপর)"
+                )
             
             # Step 5: 70 সেকেন্ড পর পর 3 বার resend
             self.log(f"→ Starting resend cycle (3 times, 70s apart)...", "INFO")
@@ -144,13 +150,14 @@ class RegistrationWorkflow:
             self.log(f"✓ All resends completed", "SUCCESS")
             
             # Final notification
-            await telegram_handler.send_notification(
-                email,
-                f"✅ সম্পূর্ণ হয়েছে!\n\n"
-                f"📧 {email}\n"
-                f"📱 +{country_code}{phone}\n\n"
-                f"🎉 Account creation সম্পন্ন"
-            )
+            if telegram_handler:
+                await telegram_handler.send_notification(
+                    email,
+                    f"✅ সম্পূর্ণ হয়েছে!\n\n"
+                    f"📧 {email}\n"
+                    f"📱 +{country_code}{phone}\n\n"
+                    f"🎉 Account creation সম্পন্ন"
+                )
             
             self.log(f"✅ Email {email} COMPLETED SUCCESSFULLY", "SUCCESS")
             self.results.append({
@@ -170,7 +177,7 @@ class RegistrationWorkflow:
             return False
     
     async def run_workflow(self):
-        """সম্পূর্ণ workflow চালান"""
+        """সম্পূর্ণ workflow চালান - reCAPTCHA ছাড়াই"""
         try:
             self.log(f"\n{'='*80}", "INFO")
             self.log(f"🚀 OG.COM REGISTRATION AUTOMATION WORKFLOW STARTED", "INFO")
@@ -181,23 +188,21 @@ class RegistrationWorkflow:
             emails_json = os.getenv("EMAILS_DATA", "[]")
             telegram_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
             telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
-            recaptcha_token = os.getenv("RECAPTCHA_TOKEN", "")
             
             self.log(f"", "INFO")
             self.log(f"Configuration:", "INFO")
             self.log(f"  Bot Token: {telegram_token[:20] if telegram_token else 'NOT SET'}...", "INFO")
             self.log(f"  Chat ID: {telegram_chat_id if telegram_chat_id else 'NOT SET'}", "INFO")
-            self.log(f"  RecAPTCHA Token: {'Set' if recaptcha_token else 'Empty (will auto-handle)'}", "INFO")
             self.log(f"  AC Value: {AC_VALUE}", "INFO")
+            self.log(f"  Note: reCAPTCHA handling by API (no token needed)", "INFO")
             
-            if not recaptcha_token:
-                self.log(f"⚠️  Warning: RecAPTCHA token not set, using empty token", "WARNING")
-                recaptcha_token = ""
+            # Telegram bot initialize করুন (optional)
+            if telegram_token and telegram_chat_id:
+                await init_telegram(telegram_token, telegram_chat_id)
+            else:
+                self.log(f"⚠️ Telegram not configured - notifications disabled", "WARNING")
             
-            # Telegram bot initialize করুন
-            await init_telegram(telegram_token, telegram_chat_id)
-            
-            # ✅ FIX: API session initialize করুন (IMPORTANT!)
+            # ✅ API session initialize করুন
             self.log(f"→ Initializing API session...", "INFO")
             if not api_handler.initialize_session():
                 self.log(f"✗ Failed to initialize API session", "ERROR")
@@ -217,7 +222,7 @@ class RegistrationWorkflow:
             
             # প্রতিটা ইমেইল process করুন
             for index, email_data in enumerate(emails_data):
-                await self.process_email(email_data, recaptcha_token)
+                await self.process_email(email_data)
                 
                 # পরবর্তী ইমেইলের আগে delay
                 if self.current_index < self.total_emails:
@@ -260,4 +265,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-    
+            
